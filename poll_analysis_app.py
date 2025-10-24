@@ -31,6 +31,8 @@ def get_session_summary(df):
         )
         .reset_index()
     )
+    # Sort by date in reverse order (most recent first)
+    summary = summary.sort_values("Webinar Date", ascending=False)
     return summary
 
 
@@ -44,8 +46,8 @@ def get_question_totals(df, session_filter=None):
         .size()
         .reset_index(name="Count")
     )
-    # Sort by date
-    totals = totals.sort_values("Webinar Date")
+    # Sort by date in reverse order (most recent first)
+    totals = totals.sort_values("Webinar Date", ascending=False)
     return totals
 
 
@@ -173,14 +175,14 @@ def main():
                     )
                     st.dataframe(display_data, use_container_width=True, hide_index=True)
 
-                    # Pie chart
+                    # Pie chart with unique key
                     fig = px.pie(
                         question_data,
                         values="Count",
                         names="Answer",
                         title="Response Distribution",
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, key=f"chart_{session_date}_{question}")
 
             st.markdown("---")
 
