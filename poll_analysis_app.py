@@ -40,10 +40,12 @@ def get_question_totals(df, session_filter=None):
         df = df[df["Month Year"] == session_filter]
 
     totals = (
-        df.groupby(["Month Year", "Question", "Answer"])
+        df.groupby(["Webinar Date", "Month Year", "Webinar Title (Full)", "Question", "Answer"])
         .size()
         .reset_index(name="Count")
     )
+    # Sort by date
+    totals = totals.sort_values("Webinar Date")
     return totals
 
 
@@ -124,58 +126,54 @@ def main():
     with tab2:
         st.header("Question Totals")
 
-        if selected_session != "All Sessions":
-            st.subheader(f"Session: {selected_session}")
-
         # Get question totals
         question_totals = get_question_totals(
             df,
             session_filter=None if selected_session == "All Sessions" else selected_session,
         )
 
-        # Group by question for display
-        questions_in_view = question_totals["Question"].unique()
+        # Group by session (Webinar Date, Month Year, Webinar Title)
+        sessions_in_view = question_totals[["Webinar Date", "Month Year", "Webinar Title (Full)"]].drop_duplicates()
 
-        for question in questions_in_view:
-            with st.expander(f"📝 {question}", expanded=True):
-                question_data = question_totals[question_totals["Question"] == question]
+        for _, session_row in sessions_in_view.iterrows():
+            session_date = session_row["Webinar Date"]
+            month_year = session_row["Month Year"]
+            webinar_title = session_row["Webinar Title (Full)"]
 
-                # Pivot for better display
-                pivot_data = question_data.pivot_table(
-                    index="Answer",
-                    columns="Month Year" if selected_session == "All Sessions" else None,
-                    values="Count",
-                    aggfunc="sum",
-                    fill_value=0,
-                )
+            # Format date nicely (e.g., "January 2024")
+            formatted_date = pd.to_datetime(str(session_date), format="%Y%m%d").strftime("%B %Y")
 
-                if selected_session == "All Sessions":
-                    st.dataframe(pivot_data, use_container_width=True)
+            # Create session header
+            st.subheader(f"📅 {formatted_date} - {webinar_title}")
 
-                    # Visualization
-                    fig = px.bar(
-                        question_data,
-                        x="Answer",
-                        y="Count",
-                        color="Month Year",
-                        title=f"Response Distribution",
-                        barmode="group",
-                    )
-                    fig.update_layout(xaxis_tickangle=-45)
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    # Single session view
+            # Filter data for this session
+            session_data = question_totals[
+                (question_totals["Webinar Date"] == session_date) &
+                (question_totals["Month Year"] == month_year) &
+                (question_totals["Webinar Title (Full)"] == webinar_title)
+            ]
+
+            # Group by question for this session
+            questions_in_session = session_data["Question"].unique()
+
+            for question in questions_in_session:
+                with st.expander(f"📝 {question}", expanded=False):
+                    question_data = session_data[session_data["Question"] == question]
+
+                    # Calculate percentages
                     total = question_data["Count"].sum()
+                    question_data = question_data.copy()
                     question_data["Percentage"] = (
                         question_data["Count"] / total * 100
                     ).round(1)
 
+                    # Display data
                     display_data = question_data[["Answer", "Count", "Percentage"]].sort_values(
                         "Count", ascending=False
                     )
                     st.dataframe(display_data, use_container_width=True, hide_index=True)
 
-                    # Pie chart for single session
+                    # Pie chart
                     fig = px.pie(
                         question_data,
                         values="Count",
@@ -183,6 +181,8 @@ def main():
                         title="Response Distribution",
                     )
                     st.plotly_chart(fig, use_container_width=True)
+
+            st.markdown("---")
 
     # Tab 3: Individual Responses
     with tab3:
